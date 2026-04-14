@@ -1,0 +1,189 @@
+@page {
+  margin: 0.45in 0.5in 0.55in;
+  size: letter;
+
+  @bottom-right {
+    color: #607283;
+    content: "Field Log " counter(page);
+    font-size: 8pt;
+  }
+}
+
+body {
+  color: #173245;
+  font-family: "DejaVu Sans", sans-serif;
+  font-size: 9.25pt;
+  line-height: 1.45;
+}
+
+.hero,
+.card {
+  border: 1px solid #d7e3ea;
+  border-radius: 16px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+}
+
+.hero {
+  background: linear-gradient(180deg, #f4fafc 0%, #fbfdfe 100%);
+}
+
+.hero-main,
+.hero-side {
+  display: inline-block;
+  vertical-align: top;
+  width: 49%;
+}
+
+.hero-side {
+  text-align: left;
+}
+
+.eyebrow,
+.section-kicker {
+  color: #176e79;
+  font-size: 8.5pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.section-kicker {
+  margin-bottom: 8px;
+}
+
+.boundary-note {
+  background: #fff7e8;
+  border-left: 4px solid #d48c22;
+  border-radius: 8px;
+  color: #5f440a;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 21pt;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+h2 {
+  font-size: 13pt;
+  margin-bottom: 6px;
+}
+
+h3 {
+  font-size: 10.5pt;
+  margin-bottom: 10px;
+}
+
+.meta-line,
+.subtle,
+.empty {
+  color: #5a6d7d;
+}
+
+.meta-grid,
+.section-grid {
+  display: grid;
+  gap: 10px 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compact-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.meta-label {
+  color: #607283;
+  display: block;
+  font-size: 8.25pt;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.long-text,
+.note-strip p {
+  white-space: pre-wrap;
+}
+
+.note-strip {
+  background: #f8fbfd;
+  border: 1px solid #e3edf2;
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.boring-card {
+  page-break-inside: avoid;
+}
+
+.boring-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.chip {
+  background: #edf5f8;
+  border: 1px solid #cfe0e8;
+  border-radius: 999px;
+  color: #1d5366;
+  font-size: 8.5pt;
+  font-weight: 700;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.subsection {
+  margin-top: 14px;
+}
+
+table {
+  border-collapse: collapse;
+  margin-top: 8px;
+  width: 100%;
+}
+
+th,
+td {
+  border: 1px solid #d7e3ea;
+  padding: 7px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+thead th {
+  background: #edf5f8;
+  color: #18384a;
+  font-size: 8.25pt;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.interval-table td {
+  font-size: 8.75pt;
+}
+
+.interval-table td div {
+  margin-bottom: 3px;
+}
+
+.interval-table td div:last-child {
+  margin-bottom: 0;
+}

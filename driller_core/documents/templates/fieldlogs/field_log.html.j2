@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ project_number }} Field Log</title>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-main">
+        <p class="eyebrow">{{ artifact_title }}</p>
+        <h1>{{ project_name or project_number or "Field Log" }}</h1>
+        <p class="meta-line">
+          Project {{ project_number or "Unnumbered" }}
+          {% if proposal_number %} / Proposal {{ proposal_number }}{% endif %}
+          {% if external_project_id %} / Execution {{ external_project_id }}{% endif %}
+        </p>
+        <p class="boundary-note">{{ boundary_note }}</p>
+      </div>
+      <div class="hero-side">
+        <div class="meta-grid">
+          <div>
+            <span class="meta-label">Client</span>
+            <strong>{{ client_name or "Not captured" }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Scheduled Start</span>
+            <strong>{{ scheduled_start_date or "Not captured" }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Estimated Days</span>
+            <strong>{{ estimated_days }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Snapshot Status</span>
+            <strong>{{ record_status_label }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Entry Method</span>
+            <strong>{{ entry_method }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Accepted At</span>
+            <strong>{{ accepted_at or "Not captured" }}</strong>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="section-grid">
+        <div>
+          <p class="section-kicker">Field Record</p>
+          <p><strong>Record reference:</strong> {{ record_reference }}</p>
+          <p><strong>Entered by:</strong> {{ entered_by or "Not captured" }}</p>
+          <p><strong>Submitted at:</strong> {{ submitted_at or "Not captured" }}</p>
+          <p><strong>Reviewed by:</strong> {{ reviewed_by or "Not captured" }}</p>
+        </div>
+        <div>
+          <p class="section-kicker">Assigned Driller</p>
+          <p><strong>Company:</strong> {{ assigned_driller.company_name }}</p>
+          <p><strong>Crew:</strong> {{ assigned_driller.display_name }}</p>
+          <p><strong>Contact:</strong> {{ assigned_driller.contact_name or "Not captured" }}</p>
+          <p><strong>Email:</strong> {{ assigned_driller.email or "Not captured" }}</p>
+          <p><strong>Phone:</strong> {{ assigned_driller.phone or "Not captured" }}</p>
+        </div>
+      </div>
+    </section>
+
+    {% if notes %}
+    <section class="card">
+      <p class="section-kicker">Record Notes</p>
+      <p class="long-text">{{ notes }}</p>
+    </section>
+    {% endif %}
+
+    {% if custody %}
+    <section class="card">
+      <div class="section-grid">
+        <div>
+          <p class="section-kicker">Sample Chain of Custody</p>
+          <p><strong>Released by:</strong> {{ custody.released_by_name }}{% if custody.released_by_role %} ({{ custody.released_by_role }}){% endif %}</p>
+          <p><strong>Released at:</strong> {{ custody.released_at or "Not captured" }}</p>
+          <p><strong>Transfer method:</strong> {{ custody.transfer_method }}</p>
+          <p><strong>Transfer location:</strong> {{ custody.transfer_location }}</p>
+        </div>
+        <div>
+          <p class="section-kicker">Destination</p>
+          <p><strong>Destination type:</strong> {{ custody.destination_type }}</p>
+          <p><strong>Destination name:</strong> {{ custody.destination_name }}</p>
+          <p><strong>Received by:</strong> {% if custody.received_by_name %}{{ custody.received_by_name }}{% if custody.received_by_role %} ({{ custody.received_by_role }}){% endif %}{% else %}Not captured{% endif %}</p>
+          <p><strong>Received at:</strong> {{ custody.received_at or "Not captured" }}</p>
+        </div>
+      </div>
+      {% if custody.tracking_number or custody.sample_condition_on_transfer or custody.custody_notes %}
+      <div class="note-strip">
+        {% if custody.tracking_number %}<p><strong>Tracking number:</strong> {{ custody.tracking_number }}</p>{% endif %}
+        {% if custody.sample_condition_on_transfer %}<p><strong>Sample condition on transfer:</strong> {{ custody.sample_condition_on_transfer }}</p>{% endif %}
+        {% if custody.custody_notes %}<p><strong>Custody notes:</strong> {{ custody.custody_notes }}</p>{% endif %}
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if borings %}
+      {% for boring in borings %}
+      <section class="card boring-card">
+        <div class="boring-header">
+          <div>
+            <p class="section-kicker">Boring {{ loop.index }}{% if boring.planned_sequence %} / Planned {{ boring.planned_sequence }}{% endif %}</p>
+            <h2>{{ boring.name }}</h2>
+            <p class="meta-line">
+              Planned depth {{ boring.planned_depth }} ft
+              {% if boring.actual_depth %} / Actual depth {{ boring.actual_depth }} ft{% endif %}
+              {% if boring.planned_category %} / Scope {{ boring.planned_category|replace('_', ' ')|title }}{% endif %}
+            </p>
+          </div>
+          <div class="chip">{{ boring.status_label }}</div>
+        </div>
+
+        <div class="section-grid compact-grid">
+          <div>
+            <span class="meta-label">Drilling Method</span>
+            <strong>{{ boring.drilling_method or "Not captured" }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Surface Elevation</span>
+            <strong>{{ boring.surface_elevation or "Not captured" }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Backfill Method</span>
+            <strong>{{ boring.backfill_method or "Not captured" }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Sampling Plan</span>
+            <strong>
+              {% if boring.sampling_plan %}
+                {{ boring.sampling_plan.method_key|replace('_', ' ')|title }} to {{ boring.sampling_plan.generated_to_depth }} ft
+              {% else %}
+                Not captured
+              {% endif %}
+            </strong>
+          </div>
+        </div>
+
+        {% if boring.relocation_note or boring.notes %}
+        <div class="note-strip">
+          {% if boring.relocation_note %}<p><strong>Relocation note:</strong> {{ boring.relocation_note }}</p>{% endif %}
+          {% if boring.notes %}<p><strong>Boring notes:</strong> {{ boring.notes }}</p>{% endif %}
+        </div>
+        {% endif %}
+
+        <h3>Sample Intervals</h3>
+        {% if boring.intervals %}
+        <table class="interval-table">
+          <thead>
+            <tr>
+              <th>Sample</th>
+              <th>Type / State</th>
+              <th>Depths</th>
+              <th>Field / Provisional Observation</th>
+              <th>Type-Specific Data</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for interval in boring.intervals %}
+            <tr>
+              <td>
+                <strong>{{ interval.sample_label or ("Sample " ~ interval.sequence_number) }}</strong>
+                <div class="subtle">Internal ID {{ interval.internal_sample_id }}</div>
+              </td>
+              <td>
+                <strong>{{ interval.sample_type_label }}</strong>
+                <div class="subtle">{{ interval.state_label }}</div>
+              </td>
+              <td>
+                <div><strong>Planned:</strong> {{ interval.planned_from_depth }} - {{ interval.planned_to_depth }} ft</div>
+                <div>
+                  <strong>Actual:</strong>
+                  {% if interval.actual_from_depth and interval.actual_to_depth %}
+                    {{ interval.actual_from_depth }} - {{ interval.actual_to_depth }} ft
+                  {% else %}
+                    Not captured
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                {% if interval.observation %}
+                  <div><strong>Field classification:</strong> {{ interval.observation.provisional_field_classification or "Not captured" }}</div>
+                  <div><strong>Moisture / weathering:</strong> {{ interval.observation.moisture_condition or "Not captured" }}</div>
+                  <div><strong>Color:</strong> {{ interval.observation.color or "Not captured" }}</div>
+                  <div><strong>Description:</strong> {{ interval.observation.provisional_description or "Not captured" }}</div>
+                  <div><strong>Recovery:</strong> {{ interval.observation.recovery_length }} ft{% if interval.observation.recovery_percent %} ({{ interval.observation.recovery_percent }}%){% endif %}</div>
+                  {% if interval.observation.sample_condition %}<div><strong>Sample condition:</strong> {{ interval.observation.sample_condition }}</div>{% endif %}
+                  {% if interval.observation.retained_sample %}<div><strong>Retained sample:</strong> Yes</div>{% endif %}
+                  {% if interval.observation.notes %}<div><strong>Observation notes:</strong> {{ interval.observation.notes }}</div>{% endif %}
+                {% else %}
+                  <span class="subtle">No field observation captured.</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if interval.sample_type == "spt" %}
+                  {% if interval.spt_result %}
+                    <div><strong>Blows:</strong> {{ interval.spt_result.blows_1 }} / {{ interval.spt_result.blows_2 }} / {{ interval.spt_result.blows_3 }}</div>
+                    <div><strong>N-value:</strong> {{ interval.spt_result.n_value }}</div>
+                    <div><strong>Refusal:</strong> {{ "Yes" if interval.spt_result.refusal_flag else "No" }}</div>
+                    {% if interval.spt_result.notes %}<div><strong>SPT notes:</strong> {{ interval.spt_result.notes }}</div>{% endif %}
+                  {% else %}
+                    <span class="subtle">No SPT result captured.</span>
+                  {% endif %}
+                {% elif interval.sample_type == "shelby" %}
+                  <div><strong>Pocket pen top:</strong> {{ interval.pocket_penetrometer_top or "Not captured" }}</div>
+                  <div><strong>Pocket pen middle:</strong> {{ interval.pocket_penetrometer_middle or interval.pocket_penetrometer or "Not captured" }}</div>
+                  <div><strong>Pocket pen bottom:</strong> {{ interval.pocket_penetrometer_bottom or "Not captured" }}</div>
+                {% elif interval.sample_type == "grab" %}
+                  <div><strong>Grab sample:</strong> Surface / interval bag sample</div>
+                  <div><strong>Field note basis:</strong> Operator remarks and provisional observation only</div>
+                {% elif interval.sample_type == "coring" %}
+                  <div><strong>Core run length:</strong> {{ interval.observation.core_run_length if interval.observation and interval.observation.core_run_length else "Not captured" }}</div>
+                  <div><strong>RQD:</strong> {{ interval.rqd_percent ~ "%" if interval.rqd_percent else "Not captured" }}</div>
+                  <div><strong>Rock classification:</strong> {{ interval.observation.rock_core_classification if interval.observation and interval.observation.rock_core_classification else "Not captured" }}</div>
+                  <div><strong>Rock type:</strong> {{ interval.observation.rock_type_name if interval.observation and interval.observation.rock_type_name else "Not captured" }}</div>
+                  {% if interval.observation and interval.observation.rock_notes %}<div><strong>Rock notes:</strong> {{ interval.observation.rock_notes }}</div>{% endif %}
+                {% else %}
+                  <span class="subtle">No type-specific data captured.</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if interval.deviation_reason %}<div><strong>Deviation:</strong> {{ interval.deviation_reason }}</div>{% endif %}
+                {% if interval.operator_notes %}<div><strong>Operator notes:</strong> {{ interval.operator_notes }}</div>{% endif %}
+                {% if not interval.deviation_reason and not interval.operator_notes %}
+                  <span class="subtle">No interval remarks.</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty">No sample intervals captured.</p>
+        {% endif %}
+
+        <div class="subsection">
+          <h3>Groundwater Observations</h3>
+          {% if boring.groundwater_observations %}
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Depth</th>
+                <th>Observed At</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for observation in boring.groundwater_observations %}
+              <tr>
+                <td>{{ observation.observation_type_label }}</td>
+                <td>{{ observation.depth }} ft</td>
+                <td>{{ observation.observed_at or "Not captured" }}</td>
+                <td>{{ observation.note or "Not captured" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="empty">No groundwater observations captured.</p>
+          {% endif %}
+        </div>
+
+        <div class="subsection">
+          <h3>Completion</h3>
+          {% if boring.completion %}
+          <div class="section-grid compact-grid">
+            <div>
+              <span class="meta-label">Completed At</span>
+              <strong>{{ boring.completion.completed_at or "Not captured" }}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Final Depth / ATD</span>
+              <strong>{{ boring.completion.final_depth }}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Termination Reason</span>
+              <strong>{{ boring.completion.termination_reason_label }}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Refusal Depth</span>
+              <strong>{{ boring.completion.refusal_depth or "Not captured" }}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Obstruction Depth</span>
+              <strong>{{ boring.completion.obstruction_depth or "Not captured" }}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Cave-In Depth</span>
+              <strong>{{ boring.completion.cave_in_depth or "Not captured" }}</strong>
+            </div>
+          </div>
+          {% if boring.completion.notes %}
+          <div class="note-strip">
+            <p><strong>Completion notes:</strong> {{ boring.completion.notes }}</p>
+          </div>
+          {% endif %}
+          {% else %}
+          <p class="empty">No completion facts captured.</p>
+          {% endif %}
+        </div>
+      </section>
+      {% endfor %}
+    {% else %}
+      <section class="card">
+        <p class="empty">No borings were captured in this field log.</p>
+      </section>
+    {% endif %}
+  </body>
+</html>
