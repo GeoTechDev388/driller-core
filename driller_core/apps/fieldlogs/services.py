@@ -147,6 +147,16 @@ def _nullable_decimal_value(value) -> Decimal | None:
     return _decimal_value(value)
 
 
+def _decimal_field_valid(value) -> bool:
+    if value in (None, ""):
+        return True
+    try:
+        parsed = Decimal(str(value).strip())
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+    return parsed.is_finite()
+
+
 def _int_value(value, *, default: int = 0) -> int:
     if value in (None, ""):
         return default
@@ -179,6 +189,22 @@ def _datetime_value(value) -> datetime | None:
 def _add_field_error(field_errors: dict[str, str], path: str, message: str) -> None:
     if path and path not in field_errors:
         field_errors[path] = message
+
+
+def _validate_decimal_field(
+    field_errors: dict[str, str],
+    *,
+    path: str,
+    value,
+    required: bool = False,
+    required_message: str = "This numeric field is required.",
+) -> None:
+    if value in (None, ""):
+        if required:
+            _add_field_error(field_errors, path, required_message)
+        return
+    if not _decimal_field_valid(value):
+        _add_field_error(field_errors, path, "Enter a valid decimal value.")
 
 
 def _raw_text(value) -> str:
@@ -257,6 +283,9 @@ def _validate_update_payload(payload: dict) -> None:
     for boring_index, boring_payload in enumerate(borings_payload):
         boring_path = f"borings.{boring_index}"
         drilling_method = _raw_text(boring_payload.get("drilling_method"))
+        _validate_decimal_field(field_errors, path=f"{boring_path}.planned_depth", value=boring_payload.get("planned_depth"))
+        _validate_decimal_field(field_errors, path=f"{boring_path}.actual_depth", value=boring_payload.get("actual_depth"))
+        _validate_decimal_field(field_errors, path=f"{boring_path}.surface_elevation", value=boring_payload.get("surface_elevation"))
         _validate_choice_field(
             field_errors,
             path=f"{boring_path}.drilling_method",
@@ -268,6 +297,7 @@ def _validate_update_payload(payload: dict) -> None:
 
         for groundwater_index, groundwater_payload in enumerate(boring_payload.get("groundwater_observations") or []):
             groundwater_path = f"{boring_path}.groundwater_observations.{groundwater_index}"
+            _validate_decimal_field(field_errors, path=f"{groundwater_path}.depth", value=groundwater_payload.get("depth"))
             _validate_choice_field(
                 field_errors,
                 path=f"{groundwater_path}.observation_type",
@@ -286,6 +316,16 @@ def _validate_update_payload(payload: dict) -> None:
         completion_payload = boring_payload.get("completion") or None
         if completion_payload:
             completion_path = f"{boring_path}.completion"
+            _validate_decimal_field(
+                field_errors,
+                path=f"{completion_path}.final_depth",
+                value=completion_payload.get("final_depth"),
+                required=True,
+                required_message="Final depth / ATD is required.",
+            )
+            _validate_decimal_field(field_errors, path=f"{completion_path}.refusal_depth", value=completion_payload.get("refusal_depth"))
+            _validate_decimal_field(field_errors, path=f"{completion_path}.obstruction_depth", value=completion_payload.get("obstruction_depth"))
+            _validate_decimal_field(field_errors, path=f"{completion_path}.cave_in_depth", value=completion_payload.get("cave_in_depth"))
             _validate_datetime_field(
                 field_errors,
                 path=f"{completion_path}.completed_at",
@@ -306,6 +346,16 @@ def _validate_update_payload(payload: dict) -> None:
             sample_type = _raw_text(interval_payload.get("sample_type") or SampleInterval.SampleType.SPT)
             observation_payload = interval_payload.get("observation") or {}
             spt_payload = interval_payload.get("spt_result") or {}
+            _validate_decimal_field(field_errors, path=f"{interval_path}.actual_from_depth", value=interval_payload.get("actual_from_depth"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.actual_to_depth", value=interval_payload.get("actual_to_depth"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.pocket_penetrometer", value=interval_payload.get("pocket_penetrometer"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.pocket_penetrometer_top", value=interval_payload.get("pocket_penetrometer_top"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.pocket_penetrometer_middle", value=interval_payload.get("pocket_penetrometer_middle"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.pocket_penetrometer_bottom", value=interval_payload.get("pocket_penetrometer_bottom"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.rqd_percent", value=interval_payload.get("rqd_percent"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.observation.recovery_length", value=observation_payload.get("recovery_length"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.observation.recovery_percent", value=observation_payload.get("recovery_percent"))
+            _validate_decimal_field(field_errors, path=f"{interval_path}.observation.core_run_length", value=observation_payload.get("core_run_length"))
 
             _validate_choice_field(
                 field_errors,
@@ -1004,6 +1054,8 @@ def _sync_intervals(boring: BoringExecution, payload_intervals: list[dict]) -> N
 def _sync_groundwater_observations(boring: BoringExecution, payload: list[dict]) -> None:
     boring.groundwater_observations.all().delete()
     for groundwater_payload in payload:
+        if groundwater_payload.get("depth") in (None, ""):
+            continue
         GroundwaterObservation.objects.create(
             boring=boring,
             observation_type=(groundwater_payload.get("observation_type") or GroundwaterObservation.ObservationType.ENCOUNTERED).strip(),
