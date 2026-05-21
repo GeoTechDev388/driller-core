@@ -16,6 +16,7 @@ from .models import (
     DrillingInputRecord,
     FieldExecution,
     GroundwaterObservation,
+    MethodAuthority,
     SampleChainOfCustody,
     SPTResult,
     SampleInterval,
@@ -117,6 +118,11 @@ def field_log_form_options_payload() -> dict:
         "sample_types": _option_payload(SampleInterval.SampleType.choices),
         "groundwater_types": _option_payload(GroundwaterObservation.ObservationType.choices),
         "completion_reasons": _option_payload(BoringCompletion.TerminationReason.choices),
+        "coordinate_systems": _option_payload(BoringExecution.CoordinateSystem.choices),
+        "coordinate_sources": _option_payload(BoringExecution.LocationCaptureSource.choices),
+        "coordinate_confidence_levels": _option_payload(BoringExecution.LocationConfidence.choices),
+        "location_review_statuses": _option_payload(BoringExecution.LocationReviewStatus.choices),
+        "method_authorities": _option_payload(MethodAuthority.choices),
         "custody_transfer_methods": _option_payload(CHAIN_OF_CUSTODY_TRANSFER_METHOD_OPTIONS),
         "custody_destination_types": _option_payload(CHAIN_OF_CUSTODY_DESTINATION_TYPE_OPTIONS),
     }
@@ -207,6 +213,25 @@ def _validate_decimal_field(
         _add_field_error(field_errors, path, "Enter a valid decimal value.")
 
 
+def _validate_decimal_range_if_present(
+    field_errors: dict[str, str],
+    *,
+    path: str,
+    value,
+    minimum: Decimal,
+    maximum: Decimal,
+    message: str,
+) -> None:
+    if value in (None, "") or path in field_errors:
+        return
+    try:
+        parsed = Decimal(str(value).strip())
+    except (InvalidOperation, TypeError, ValueError):
+        return
+    if parsed < minimum or parsed > maximum:
+        _add_field_error(field_errors, path, message)
+
+
 def _raw_text(value) -> str:
     return str(value or "").strip()
 
@@ -266,6 +291,45 @@ def _has_value(value) -> bool:
     return value not in (None, "")
 
 
+_MISSING = object()
+
+
+def _dict_payload(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _payload_value(payload: dict, nested: dict, key: str):
+    if isinstance(payload, dict) and key in payload:
+        return payload.get(key)
+    if isinstance(nested, dict) and key in nested:
+        return nested.get(key)
+    return _MISSING
+
+
+def _assign_decimal_from_payload(instance, attr: str, payload: dict, nested: dict, key: str) -> None:
+    value = _payload_value(payload, nested, key)
+    if value is not _MISSING:
+        setattr(instance, attr, _nullable_decimal_value(value))
+
+
+def _assign_text_from_payload(instance, attr: str, payload: dict, nested: dict, key: str) -> None:
+    value = _payload_value(payload, nested, key)
+    if value is not _MISSING:
+        setattr(instance, attr, _raw_text(value))
+
+
+def _assign_choice_from_payload(instance, attr: str, payload: dict, nested: dict, key: str, *, default: str) -> None:
+    value = _payload_value(payload, nested, key)
+    if value is not _MISSING:
+        setattr(instance, attr, _raw_text(value) or str(default))
+
+
+def _assign_datetime_from_payload(instance, attr: str, payload: dict, nested: dict, key: str) -> None:
+    value = _payload_value(payload, nested, key)
+    if value is not _MISSING:
+        setattr(instance, attr, _datetime_value(value))
+
+
 def _validate_update_payload(payload: dict) -> None:
     field_errors: dict[str, str] = {}
     borings_payload = payload.get("borings") or []
@@ -279,13 +343,46 @@ def _validate_update_payload(payload: dict) -> None:
     sample_type_values = {choice for choice, _label in SampleInterval.SampleType.choices}
     groundwater_type_values = {choice for choice, _label in GroundwaterObservation.ObservationType.choices}
     completion_reason_values = {choice for choice, _label in BoringCompletion.TerminationReason.choices}
+    coordinate_system_values = {choice for choice, _label in BoringExecution.CoordinateSystem.choices}
+    coordinate_source_values = {choice for choice, _label in BoringExecution.LocationCaptureSource.choices}
+    coordinate_confidence_values = {choice for choice, _label in BoringExecution.LocationConfidence.choices}
+    location_review_status_values = {choice for choice, _label in BoringExecution.LocationReviewStatus.choices}
+    method_authority_values = {choice for choice, _label in MethodAuthority.choices}
 
     for boring_index, boring_payload in enumerate(borings_payload):
         boring_path = f"borings.{boring_index}"
         drilling_method = _raw_text(boring_payload.get("drilling_method"))
+        location_payload = _dict_payload(boring_payload.get("location"))
+        elevation_payload = _dict_payload(boring_payload.get("elevation_reference"))
+        drilling_method_payload = _dict_payload(boring_payload.get("drilling_method_metadata"))
         _validate_decimal_field(field_errors, path=f"{boring_path}.planned_depth", value=boring_payload.get("planned_depth"))
         _validate_decimal_field(field_errors, path=f"{boring_path}.actual_depth", value=boring_payload.get("actual_depth"))
         _validate_decimal_field(field_errors, path=f"{boring_path}.surface_elevation", value=boring_payload.get("surface_elevation"))
+        _validate_decimal_field(field_errors, path=f"{boring_path}.elevation_reference.value", value=elevation_payload.get("value"))
+        _validate_decimal_field(field_errors, path=f"{boring_path}.location.latitude", value=location_payload.get("latitude"))
+        _validate_decimal_field(field_errors, path=f"{boring_path}.location.longitude", value=location_payload.get("longitude"))
+        _validate_decimal_field(field_errors, path=f"{boring_path}.location.accuracy_m", value=location_payload.get("accuracy_m"))
+        _validate_decimal_range_if_present(
+            field_errors,
+            path=f"{boring_path}.location.latitude",
+            value=location_payload.get("latitude"),
+            minimum=Decimal("-90.0000000"),
+            maximum=Decimal("90.0000000"),
+            message="Latitude must be between -90 and 90.",
+        )
+        _validate_decimal_range_if_present(
+            field_errors,
+            path=f"{boring_path}.location.longitude",
+            value=location_payload.get("longitude"),
+            minimum=Decimal("-180.0000000"),
+            maximum=Decimal("180.0000000"),
+            message="Longitude must be between -180 and 180.",
+        )
+        _validate_decimal_field(
+            field_errors,
+            path=f"{boring_path}.elevation_reference.accuracy_ft",
+            value=elevation_payload.get("accuracy_ft"),
+        )
         _validate_choice_field(
             field_errors,
             path=f"{boring_path}.drilling_method",
@@ -293,6 +390,65 @@ def _validate_update_payload(payload: dict) -> None:
             valid_values=drilling_method_values,
             required_message="Drilling method is required.",
             invalid_message="Select a valid drilling method.",
+        )
+        _validate_choice_field(
+            field_errors,
+            path=f"{boring_path}.drilling_method_metadata.authority",
+            value=drilling_method_payload.get("authority"),
+            valid_values=method_authority_values,
+            required_message="Method authority is required.",
+            invalid_message="Select a valid method authority.",
+            required=False,
+        )
+        _validate_choice_field(
+            field_errors,
+            path=f"{boring_path}.location.coordinate_system",
+            value=location_payload.get("coordinate_system"),
+            valid_values=coordinate_system_values,
+            required_message="Coordinate system is required.",
+            invalid_message="Select a valid coordinate system.",
+            required=False,
+        )
+        _validate_choice_field(
+            field_errors,
+            path=f"{boring_path}.location.source",
+            value=location_payload.get("source"),
+            valid_values=coordinate_source_values,
+            required_message="Coordinate source is required.",
+            invalid_message="Select a valid coordinate source.",
+            required=False,
+        )
+        _validate_choice_field(
+            field_errors,
+            path=f"{boring_path}.location.confidence",
+            value=location_payload.get("confidence"),
+            valid_values=coordinate_confidence_values,
+            required_message="Coordinate confidence is required.",
+            invalid_message="Select a valid coordinate confidence.",
+            required=False,
+        )
+        _validate_choice_field(
+            field_errors,
+            path=f"{boring_path}.location.review_status",
+            value=location_payload.get("review_status"),
+            valid_values=location_review_status_values,
+            required_message="Location review status is required.",
+            invalid_message="Select a valid location review status.",
+            required=False,
+        )
+        _validate_choice_field(
+            field_errors,
+            path=f"{boring_path}.elevation_reference.source",
+            value=elevation_payload.get("source"),
+            valid_values=coordinate_source_values,
+            required_message="Elevation source is required.",
+            invalid_message="Select a valid elevation source.",
+            required=False,
+        )
+        _validate_datetime_field_if_present(
+            field_errors,
+            path=f"{boring_path}.location.captured_at",
+            value=location_payload.get("captured_at"),
         )
 
         for groundwater_index, groundwater_payload in enumerate(boring_payload.get("groundwater_observations") or []):
@@ -346,6 +502,8 @@ def _validate_update_payload(payload: dict) -> None:
             sample_type = _raw_text(interval_payload.get("sample_type") or SampleInterval.SampleType.SPT)
             observation_payload = interval_payload.get("observation") or {}
             spt_payload = interval_payload.get("spt_result") or {}
+            method_payload = _dict_payload(interval_payload.get("method_metadata"))
+            spt_method_payload = _dict_payload(spt_payload.get("method_metadata"))
             _validate_decimal_field(field_errors, path=f"{interval_path}.actual_from_depth", value=interval_payload.get("actual_from_depth"))
             _validate_decimal_field(field_errors, path=f"{interval_path}.actual_to_depth", value=interval_payload.get("actual_to_depth"))
             _validate_decimal_field(field_errors, path=f"{interval_path}.pocket_penetrometer", value=interval_payload.get("pocket_penetrometer"))
@@ -356,6 +514,24 @@ def _validate_update_payload(payload: dict) -> None:
             _validate_decimal_field(field_errors, path=f"{interval_path}.observation.recovery_length", value=observation_payload.get("recovery_length"))
             _validate_decimal_field(field_errors, path=f"{interval_path}.observation.recovery_percent", value=observation_payload.get("recovery_percent"))
             _validate_decimal_field(field_errors, path=f"{interval_path}.observation.core_run_length", value=observation_payload.get("core_run_length"))
+            _validate_choice_field(
+                field_errors,
+                path=f"{interval_path}.method_metadata.authority",
+                value=method_payload.get("authority"),
+                valid_values=method_authority_values,
+                required_message="Method authority is required.",
+                invalid_message="Select a valid method authority.",
+                required=False,
+            )
+            _validate_choice_field(
+                field_errors,
+                path=f"{interval_path}.spt_result.method_metadata.authority",
+                value=spt_method_payload.get("authority"),
+                valid_values=method_authority_values,
+                required_message="SPT method authority is required.",
+                invalid_message="Select a valid SPT method authority.",
+                required=False,
+            )
 
             _validate_choice_field(
                 field_errors,
@@ -949,6 +1125,7 @@ def _upsert_interval(interval: SampleInterval, payload: dict) -> None:
     actual_from_depth = _nullable_decimal_value(payload.get("actual_from_depth"))
     actual_to_depth = _nullable_decimal_value(payload.get("actual_to_depth"))
     sample_type = _sample_type_value(payload.get("sample_type"), default=interval.sample_type or SampleInterval.SampleType.SPT)
+    method_payload = _dict_payload(payload.get("method_metadata"))
     next_state = _derived_interval_state_from_payload(payload, sample_type=sample_type)
     if next_state in {SampleInterval.State.TAKEN, SampleInterval.State.REFUSAL}:
         actual_from_depth = actual_from_depth if actual_from_depth is not None else interval.planned_from_depth
@@ -958,13 +1135,27 @@ def _upsert_interval(interval: SampleInterval, payload: dict) -> None:
     interval.state = next_state
     interval.actual_from_depth = actual_from_depth
     interval.actual_to_depth = actual_to_depth
+    _assign_choice_from_payload(
+        interval,
+        "method_authority",
+        payload,
+        method_payload,
+        "authority",
+        default=MethodAuthority.UNKNOWN,
+    )
+    _assign_text_from_payload(interval, "method_code", payload, method_payload, "code")
+    _assign_text_from_payload(interval, "method_version", payload, method_payload, "version")
+    _assign_text_from_payload(interval, "method_notes", payload, method_payload, "notes")
+    _assign_text_from_payload(interval, "depth_unit", payload, {}, "depth_unit")
     interval.deviation_reason = (payload.get("deviation_reason") or "").strip()
     interval.operator_notes = (payload.get("operator_notes") or "").strip()
     interval.pocket_penetrometer = _nullable_decimal_value(payload.get("pocket_penetrometer"))
     interval.pocket_penetrometer_top = _nullable_decimal_value(payload.get("pocket_penetrometer_top"))
     interval.pocket_penetrometer_middle = _nullable_decimal_value(payload.get("pocket_penetrometer_middle"))
     interval.pocket_penetrometer_bottom = _nullable_decimal_value(payload.get("pocket_penetrometer_bottom"))
+    _assign_text_from_payload(interval, "pocket_penetrometer_unit", payload, {}, "pocket_penetrometer_unit")
     interval.rqd_percent = _nullable_decimal_value(payload.get("rqd_percent"))
+    _assign_text_from_payload(interval, "rqd_unit", payload, {}, "rqd_unit")
     _normalize_interval_type_specific_fields(interval, sample_type=sample_type)
     interval.sample_label = sample_label_for_boring(interval.boring.name, interval.sequence_number)
     interval.save()
@@ -992,11 +1183,23 @@ def _upsert_interval(interval: SampleInterval, payload: dict) -> None:
 
     spt_payload = payload.get("spt_result") or {}
     if sample_type == SampleInterval.SampleType.SPT and _spt_payload_present(spt_payload):
+        spt_method_payload = _dict_payload(spt_payload.get("method_metadata"))
         spt_result, _created = SPTResult.objects.get_or_create(interval=interval)
         spt_result.blows_1 = _int_value(spt_payload.get("blows_1"))
         spt_result.blows_2 = _int_value(spt_payload.get("blows_2"))
         spt_result.blows_3 = _int_value(spt_payload.get("blows_3"))
         spt_result.refusal_flag = _bool_value(spt_payload.get("refusal_flag"))
+        _assign_choice_from_payload(
+            spt_result,
+            "method_authority",
+            spt_payload,
+            spt_method_payload,
+            "authority",
+            default=MethodAuthority.UNKNOWN,
+        )
+        _assign_text_from_payload(spt_result, "method_code", spt_payload, spt_method_payload, "code")
+        _assign_text_from_payload(spt_result, "method_version", spt_payload, spt_method_payload, "version")
+        _assign_text_from_payload(spt_result, "method_notes", spt_payload, spt_method_payload, "notes")
         spt_result.notes = (spt_payload.get("notes") or "").strip()
         spt_result.save()
     elif hasattr(interval, "spt_result"):
@@ -1105,6 +1308,9 @@ def _sync_completion(boring: BoringExecution, payload: dict | None) -> None:
 
 def _upsert_boring(record: DrillingInputRecord, boring_payload: dict, *, default_name: str) -> BoringExecution:
     boring = _resolve_boring(record, boring_payload)
+    location_payload = _dict_payload(boring_payload.get("location"))
+    elevation_payload = _dict_payload(boring_payload.get("elevation_reference"))
+    drilling_method_payload = _dict_payload(boring_payload.get("drilling_method_metadata"))
     if boring is None:
         boring = BoringExecution.objects.create(
             drilling_input_record=record,
@@ -1124,7 +1330,74 @@ def _upsert_boring(record: DrillingInputRecord, boring_payload: dict, *, default
     if "actual_depth" in boring_payload:
         boring.actual_depth = _nullable_decimal_value(boring_payload.get("actual_depth"))
     boring.drilling_method = (boring_payload.get("drilling_method") or "").strip()
-    boring.surface_elevation = _nullable_decimal_value(boring_payload.get("surface_elevation"))
+    _assign_choice_from_payload(
+        boring,
+        "drilling_method_authority",
+        boring_payload,
+        drilling_method_payload,
+        "authority",
+        default=MethodAuthority.UNKNOWN,
+    )
+    _assign_text_from_payload(boring, "drilling_method_code", boring_payload, drilling_method_payload, "code")
+    _assign_text_from_payload(boring, "drilling_method_version", boring_payload, drilling_method_payload, "version")
+    _assign_text_from_payload(boring, "drilling_method_notes", boring_payload, drilling_method_payload, "notes")
+    _assign_text_from_payload(boring, "depth_unit", boring_payload, {}, "depth_unit")
+    _assign_decimal_from_payload(boring, "latitude", boring_payload, location_payload, "latitude")
+    _assign_decimal_from_payload(boring, "longitude", boring_payload, location_payload, "longitude")
+    _assign_choice_from_payload(
+        boring,
+        "coordinate_system",
+        boring_payload,
+        location_payload,
+        "coordinate_system",
+        default=BoringExecution.CoordinateSystem.GEOGRAPHIC,
+    )
+    _assign_text_from_payload(boring, "coordinate_crs", boring_payload, location_payload, "coordinate_crs")
+    _assign_text_from_payload(boring, "horizontal_datum", boring_payload, location_payload, "horizontal_datum")
+    _assign_choice_from_payload(
+        boring,
+        "coordinate_source",
+        boring_payload,
+        location_payload,
+        "source",
+        default=BoringExecution.LocationCaptureSource.UNKNOWN,
+    )
+    _assign_decimal_from_payload(boring, "coordinate_accuracy_m", boring_payload, location_payload, "accuracy_m")
+    _assign_choice_from_payload(
+        boring,
+        "coordinate_confidence",
+        boring_payload,
+        location_payload,
+        "confidence",
+        default=BoringExecution.LocationConfidence.UNKNOWN,
+    )
+    _assign_datetime_from_payload(boring, "coordinate_captured_at", boring_payload, location_payload, "captured_at")
+    _assign_text_from_payload(boring, "coordinate_recorded_by", boring_payload, location_payload, "recorded_by")
+    _assign_choice_from_payload(
+        boring,
+        "location_review_status",
+        boring_payload,
+        location_payload,
+        "review_status",
+        default=BoringExecution.LocationReviewStatus.UNREVIEWED,
+    )
+    _assign_text_from_payload(boring, "location_notes", boring_payload, location_payload, "notes")
+    surface_elevation_value = boring_payload.get("surface_elevation")
+    if surface_elevation_value in (None, "") and "value" in elevation_payload:
+        surface_elevation_value = elevation_payload.get("value")
+    boring.surface_elevation = _nullable_decimal_value(surface_elevation_value)
+    _assign_text_from_payload(boring, "surface_elevation_unit", boring_payload, elevation_payload, "unit")
+    _assign_text_from_payload(boring, "surface_elevation_vertical_datum", boring_payload, elevation_payload, "vertical_datum")
+    _assign_text_from_payload(boring, "surface_elevation_reference", boring_payload, elevation_payload, "reference")
+    _assign_choice_from_payload(
+        boring,
+        "surface_elevation_source",
+        boring_payload,
+        elevation_payload,
+        "source",
+        default=BoringExecution.LocationCaptureSource.UNKNOWN,
+    )
+    _assign_decimal_from_payload(boring, "surface_elevation_accuracy_ft", boring_payload, elevation_payload, "accuracy_ft")
     boring.backfill_method = (boring_payload.get("backfill_method") or "").strip()
     boring.notes = (boring_payload.get("notes") or "").strip()
     boring.relocation_note = (boring_payload.get("relocation_note") or "").strip()
@@ -1404,6 +1677,15 @@ def sample_observation_payload(observation: SampleObservation | None) -> dict | 
     }
 
 
+def method_metadata_payload(authority: str, code: str, version: str, notes: str) -> dict:
+    return {
+        "authority": str(authority or MethodAuthority.UNKNOWN),
+        "code": code or None,
+        "version": version or None,
+        "notes": notes or None,
+    }
+
+
 def spt_result_payload(result: SPTResult | None) -> dict | None:
     if result is None:
         return None
@@ -1415,6 +1697,12 @@ def spt_result_payload(result: SPTResult | None) -> dict | None:
         "blows_3": result.blows_3,
         "n_value": result.n_value,
         "refusal_flag": result.refusal_flag,
+        "method_metadata": method_metadata_payload(
+            result.method_authority,
+            result.method_code,
+            result.method_version,
+            result.method_notes,
+        ),
         "notes": result.notes,
     }
 
@@ -1427,8 +1715,15 @@ def interval_payload(interval: SampleInterval) -> dict:
         "shared_uuid": str(interval.shared_uuid),
         "sequence_number": interval.sequence_number,
         "method_key": interval.method_key,
+        "method_metadata": method_metadata_payload(
+            interval.method_authority,
+            interval.method_code,
+            interval.method_version,
+            interval.method_notes,
+        ),
         "sample_type": interval.sample_type,
         "state": interval.state,
+        "depth_unit": interval.depth_unit,
         "planned_from_depth": str(interval.planned_from_depth),
         "planned_to_depth": str(interval.planned_to_depth),
         "actual_from_depth": str(interval.actual_from_depth) if interval.actual_from_depth is not None else None,
@@ -1442,7 +1737,9 @@ def interval_payload(interval: SampleInterval) -> dict:
         "pocket_penetrometer_top": str(interval.pocket_penetrometer_top) if interval.pocket_penetrometer_top is not None else None,
         "pocket_penetrometer_middle": str(interval.pocket_penetrometer_middle) if interval.pocket_penetrometer_middle is not None else None,
         "pocket_penetrometer_bottom": str(interval.pocket_penetrometer_bottom) if interval.pocket_penetrometer_bottom is not None else None,
+        "pocket_penetrometer_unit": interval.pocket_penetrometer_unit,
         "rqd_percent": str(interval.rqd_percent) if interval.rqd_percent is not None else None,
+        "rqd_unit": interval.rqd_unit,
         "observation": sample_observation_payload(observation),
         "spt_result": spt_result_payload(spt_result),
         "recommended_tests": _recommended_tests_for_sample_type(interval.sample_type),
@@ -1491,7 +1788,38 @@ def boring_payload(boring: BoringExecution) -> dict:
         "actual_depth": str(boring.actual_depth) if boring.actual_depth is not None else None,
         "status": boring.status,
         "drilling_method": boring.drilling_method,
+        "drilling_method_metadata": method_metadata_payload(
+            boring.drilling_method_authority,
+            boring.drilling_method_code,
+            boring.drilling_method_version,
+            boring.drilling_method_notes,
+        ),
+        "depth_unit": boring.depth_unit,
+        "location": {
+            "latitude": str(boring.latitude) if boring.latitude is not None else None,
+            "longitude": str(boring.longitude) if boring.longitude is not None else None,
+            "coordinate_system": boring.coordinate_system,
+            "coordinate_crs": boring.coordinate_crs or None,
+            "horizontal_datum": boring.horizontal_datum or None,
+            "source": boring.coordinate_source,
+            "accuracy_m": str(boring.coordinate_accuracy_m) if boring.coordinate_accuracy_m is not None else None,
+            "confidence": boring.coordinate_confidence,
+            "captured_at": boring.coordinate_captured_at.isoformat() if boring.coordinate_captured_at else None,
+            "recorded_by": boring.coordinate_recorded_by or None,
+            "review_status": boring.location_review_status,
+            "notes": boring.location_notes or None,
+        },
         "surface_elevation": str(boring.surface_elevation) if boring.surface_elevation is not None else None,
+        "elevation_reference": {
+            "value": str(boring.surface_elevation) if boring.surface_elevation is not None else None,
+            "unit": boring.surface_elevation_unit,
+            "vertical_datum": boring.surface_elevation_vertical_datum or None,
+            "reference": boring.surface_elevation_reference or None,
+            "source": boring.surface_elevation_source,
+            "accuracy_ft": str(boring.surface_elevation_accuracy_ft)
+            if boring.surface_elevation_accuracy_ft is not None
+            else None,
+        },
         "backfill_method": boring.backfill_method,
         "notes": boring.notes,
         "relocation_note": boring.relocation_note,

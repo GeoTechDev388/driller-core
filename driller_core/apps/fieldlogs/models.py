@@ -4,7 +4,7 @@ from decimal import Decimal
 import uuid
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -18,6 +18,14 @@ def drilling_input_pdf_upload_to(instance, filename: str) -> str:
 
 def generate_internal_sample_id() -> str:
     return f"SMP-{uuid.uuid4().hex[:20].upper()}"
+
+
+class MethodAuthority(models.TextChoices):
+    ASTM = "astm", "ASTM"
+    AASHTO = "aashto", "AASHTO"
+    INTERNAL = "internal", "Internal"
+    OTHER = "other", "Other"
+    UNKNOWN = "unknown", "Unknown / not specified"
 
 
 class FieldLogTimestampedModel(models.Model):
@@ -158,6 +166,32 @@ class BoringExecution(FieldLogTimestampedModel):
         TERMINATED_EARLY = "terminated_early", "Terminated early"
         ABANDONED = "abandoned", "Abandoned"
 
+    class CoordinateSystem(models.TextChoices):
+        GEOGRAPHIC = "geographic", "Geographic"
+        PROJECTED = "projected", "Projected"
+        LOCAL = "local", "Local / site"
+        UNKNOWN = "unknown", "Unknown"
+
+    class LocationCaptureSource(models.TextChoices):
+        MANUAL_ENTRY = "manual_entry", "Manual entry"
+        UPLOADED_MAP_FILE = "uploaded_map_file", "Uploaded map file"
+        APPENDIX_B_MAP_WORKSPACE = "appendix_b_map_workspace", "Appendix B map workspace"
+        FIELD_LOG_MANUAL = "field_log_manual", "Field log manual entry"
+        PHONE_GPS = "phone_gps", "Phone GPS"
+        SURVEY = "survey", "Survey"
+        UNKNOWN = "unknown", "Unknown"
+
+    class LocationConfidence(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+        UNKNOWN = "unknown", "Unknown"
+
+    class LocationReviewStatus(models.TextChoices):
+        UNREVIEWED = "unreviewed", "Unreviewed"
+        REVIEWED = "reviewed", "Reviewed"
+        REJECTED = "rejected", "Rejected"
+
     drilling_input_record = models.ForeignKey(DrillingInputRecord, on_delete=models.CASCADE, related_name="borings")
     name = models.CharField(max_length=64)
     planned_sequence = models.PositiveIntegerField(default=0)
@@ -177,7 +211,83 @@ class BoringExecution(FieldLogTimestampedModel):
     )
     status = models.CharField(max_length=32, choices=Status.choices, default=Status.PLANNED)
     drilling_method = models.CharField(max_length=64, blank=True)
+    drilling_method_authority = models.CharField(
+        max_length=32,
+        choices=MethodAuthority.choices,
+        default=MethodAuthority.UNKNOWN,
+    )
+    drilling_method_code = models.CharField(max_length=64, blank=True)
+    drilling_method_version = models.CharField(max_length=32, blank=True)
+    drilling_method_notes = models.TextField(blank=True)
+    depth_unit = models.CharField(max_length=16, default="ft")
+    latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        validators=[
+            MinValueValidator(Decimal("-90.0000000")),
+            MaxValueValidator(Decimal("90.0000000")),
+        ],
+    )
+    longitude = models.DecimalField(
+        max_digits=11,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        validators=[
+            MinValueValidator(Decimal("-180.0000000")),
+            MaxValueValidator(Decimal("180.0000000")),
+        ],
+    )
+    coordinate_system = models.CharField(
+        max_length=24,
+        choices=CoordinateSystem.choices,
+        default=CoordinateSystem.GEOGRAPHIC,
+    )
+    coordinate_crs = models.CharField(max_length=64, blank=True)
+    horizontal_datum = models.CharField(max_length=64, blank=True)
+    coordinate_source = models.CharField(
+        max_length=32,
+        choices=LocationCaptureSource.choices,
+        default=LocationCaptureSource.UNKNOWN,
+    )
+    coordinate_accuracy_m = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    coordinate_confidence = models.CharField(
+        max_length=16,
+        choices=LocationConfidence.choices,
+        default=LocationConfidence.UNKNOWN,
+    )
+    coordinate_captured_at = models.DateTimeField(null=True, blank=True)
+    coordinate_recorded_by = models.CharField(max_length=255, blank=True)
+    location_review_status = models.CharField(
+        max_length=16,
+        choices=LocationReviewStatus.choices,
+        default=LocationReviewStatus.UNREVIEWED,
+    )
+    location_notes = models.TextField(blank=True)
     surface_elevation = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    surface_elevation_unit = models.CharField(max_length=16, default="ft")
+    surface_elevation_vertical_datum = models.CharField(max_length=64, blank=True)
+    surface_elevation_reference = models.CharField(max_length=128, blank=True)
+    surface_elevation_source = models.CharField(
+        max_length=32,
+        choices=LocationCaptureSource.choices,
+        default=LocationCaptureSource.UNKNOWN,
+    )
+    surface_elevation_accuracy_ft = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
     backfill_method = models.CharField(max_length=128, blank=True)
     notes = models.TextField(blank=True)
     relocation_note = models.TextField(blank=True)
@@ -232,8 +342,17 @@ class SampleInterval(FieldLogTimestampedModel):
     )
     sequence_number = models.PositiveIntegerField()
     method_key = models.CharField(max_length=64, default="spt_standard")
+    method_authority = models.CharField(
+        max_length=32,
+        choices=MethodAuthority.choices,
+        default=MethodAuthority.UNKNOWN,
+    )
+    method_code = models.CharField(max_length=64, blank=True)
+    method_version = models.CharField(max_length=32, blank=True)
+    method_notes = models.TextField(blank=True)
     sample_type = models.CharField(max_length=32, choices=SampleType.choices, default=SampleType.SPT)
     state = models.CharField(max_length=32, choices=State.choices, default=State.PLANNED)
+    depth_unit = models.CharField(max_length=16, default="ft")
     planned_from_depth = models.DecimalField(
         max_digits=8,
         decimal_places=2,
@@ -291,6 +410,7 @@ class SampleInterval(FieldLogTimestampedModel):
         blank=True,
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    pocket_penetrometer_unit = models.CharField(max_length=16, default="tsf")
     rqd_percent = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -298,6 +418,7 @@ class SampleInterval(FieldLogTimestampedModel):
         blank=True,
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    rqd_unit = models.CharField(max_length=16, default="percent")
 
     class Meta:
         ordering = ["boring_id", "sequence_number", "id"]
@@ -347,6 +468,14 @@ class SPTResult(FieldLogTimestampedModel):
     blows_3 = models.PositiveIntegerField(default=0)
     n_value = models.PositiveIntegerField(default=0)
     refusal_flag = models.BooleanField(default=False)
+    method_authority = models.CharField(
+        max_length=32,
+        choices=MethodAuthority.choices,
+        default=MethodAuthority.UNKNOWN,
+    )
+    method_code = models.CharField(max_length=64, blank=True)
+    method_version = models.CharField(max_length=32, blank=True)
+    method_notes = models.TextField(blank=True)
     notes = models.TextField(blank=True)
 
     def save(self, *args, **kwargs):

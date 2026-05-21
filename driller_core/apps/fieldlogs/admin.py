@@ -64,9 +64,20 @@ class DrillingInputRecordAdmin(admin.ModelAdmin):
 
 @admin.register(BoringExecution)
 class BoringExecutionAdmin(admin.ModelAdmin):
-    list_display = ("name", "drilling_input_record", "status", "planned_depth", "actual_depth", "drilling_method")
+    list_display = (
+        "name",
+        "drilling_input_record",
+        "status",
+        "planned_depth",
+        "actual_depth",
+        "drilling_method",
+        "latitude",
+        "longitude",
+        "surface_elevation",
+        "coordinate_source",
+    )
     search_fields = ("name", "drilling_input_record__field_execution__project_number")
-    list_filter = ("status", "drilling_method")
+    list_filter = ("status", "drilling_method", "coordinate_source", "location_review_status")
     inlines = [SampleIntervalInline, GroundwaterObservationInline, BoringCompletionInline]
 
 
@@ -82,6 +93,7 @@ class SampleIntervalAdmin(admin.ModelAdmin):
         "sample_label",
         "boring",
         "sequence_number",
+        "method_key",
         "sample_type",
         "state",
         "planned_from_depth",
